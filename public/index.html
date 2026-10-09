@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#d62828">
+  <title>3D 大富翁</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎲</text></svg>">
+  <link rel="stylesheet" href="/css/style.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "/vendor/three/build/three.module.js",
+        "three/addons/": "/vendor/three/examples/jsm/"
+      }
+    }
+  </script>
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+  <div id="conn-banner">⚠️ 与服务器的连接中断，正在重新连接…</div>
+
+  <!-- 登录 / 注册 -->
+  <section id="screen-auth" class="screen">
+    <div id="auth-stage" class="auth-stage"></div>
+    <div class="auth-card">
+      <h1 class="logo">大富翁<small>3D</small></h1>
+      <p class="sub">和朋友在线对战 · 上传照片定制专属角色</p>
+      <div class="tabs">
+        <button data-tab="login" class="active">登录</button>
+        <button data-tab="register">注册</button>
+      </div>
+      <form id="form-auth" autocomplete="on">
+        <input name="username" placeholder="用户名（2-16 位）" autocomplete="username" required maxlength="16">
+        <input name="nickname" placeholder="昵称（游戏中显示，可选）" class="only-register" maxlength="12">
+        <input name="password" type="password" placeholder="密码（至少 6 位）" autocomplete="current-password" required maxlength="64">
+        <button type="submit" class="btn primary big">登录</button>
+        <p class="error"></p>
+      </form>
+    </div>
+  </section>
+
+  <!-- 大厅 -->
+  <section id="screen-lobby" class="screen">
+    <header class="topbar">
+      <div class="brand">🎲 大富翁 <small>3D</small></div>
+      <div class="spacer"></div>
+      <button class="me-chip" title="编辑我的角色"></button>
+      <button id="btn-rules" class="btn small ghost">规则</button>
+      <button id="btn-logout" class="btn small ghost">退出</button>
+    </header>
+    <main class="lobby">
+      <div class="panel">
+        <div class="panel-head">
+          <h2>房间列表</h2>
+          <button id="btn-refresh" class="icon-btn" title="刷新">⟳</button>
+        </div>
+        <div id="room-list" class="room-list"></div>
+        <form id="form-join" class="row">
+          <input name="code" placeholder="输入房间号加入" maxlength="6" autocomplete="off">
+          <button class="btn">加入</button>
+        </form>
+      </div>
+      <div class="panel side">
+        <h2>创建房间</h2>
+        <form id="form-create" class="stack">
+          <label class="field">房间名<input name="name" maxlength="20"></label>
+          <div class="row">
+            <label class="field">人数上限<select name="maxPlayers"></select></label>
+            <label class="field">回合上限<select name="maxRounds"></select></label>
+          </div>
+          <button class="btn primary big">创建房间</button>
+        </form>
+        <div class="divider">或者</div>
+        <button id="btn-quick" class="btn big">🤖 和电脑练习一局</button>
+        <div class="divider">我的角色</div>
+        <button id="btn-editor" class="btn big">🎨 设计角色 / 上传照片</button>
+      </div>
+    </main>
+  </section>
+
+  <!-- 房间等待 -->
+  <section id="screen-room" class="screen">
+    <header class="topbar">
+      <button id="btn-leave" class="btn small ghost">← 离开</button>
+      <div class="room-head">
+        <strong id="room-title"></strong>
+        <small>房间号 <b id="room-code"></b> · <span id="room-count"></span></small>
+      </div>
+      <div class="spacer"></div>
+      <button id="btn-invite" class="btn small primary">🔗 邀请朋友</button>
+      <button class="me-chip" title="编辑我的角色"></button>
+    </header>
+    <div class="room-body">
+      <div class="room-stage-wrap">
+        <div id="room-stage" class="room-stage"></div>
+        <div id="room-emotes" class="emote-row"></div>
+      </div>
+      <aside class="room-side">
+        <div class="panel">
+          <h3>玩家</h3>
+          <div id="room-seats" class="seats"></div>
+          <div id="room-settings" class="room-settings"></div>
+        </div>
+        <div class="panel">
+          <h3>选择角色</h3>
+          <div id="room-chars" class="char-picks"></div>
+        </div>
+        <div id="room-actions" class="room-actions"></div>
+        <div class="panel chat-panel">
+          <div id="room-chat" class="chat"></div>
+          <form id="room-chat-form" class="row">
+            <input name="text" placeholder="说点什么…" maxlength="200" autocomplete="off">
+            <button class="btn">发送</button>
+          </form>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- 对局 -->
+  <section id="screen-game" class="screen">
+    <div id="game-canvas" class="game-canvas"></div>
+    <div id="hud-players" class="hud-players"></div>
+    <div class="hud-tools">
+      <span id="hud-round" class="round"></span>
+      <button id="btn-follow" class="icon-btn" title="镜头跟随">🎥</button>
+      <button id="btn-view" class="icon-btn" title="重置视角">🧭</button>
+      <button id="btn-sound" class="icon-btn" title="音效">🔊</button>
+      <button id="btn-menu" class="icon-btn" title="菜单">☰</button>
+    </div>
+    <div id="hud-feed" class="hud-feed open" data-tab="log">
+      <div class="feed-tabs">
+        <button data-tab="log">日志</button>
+        <button data-tab="chat">聊天<i class="chat-dot"></i></button>
+        <button class="feed-collapse" title="展开/收起">▾</button>
+      </div>
+      <div id="hud-log" class="feed-body log"></div>
+      <div class="feed-body chat-wrap">
+        <div id="hud-chat" class="chat"></div>
+        <form id="hud-chat-form" class="row">
+          <input placeholder="说点什么…" maxlength="200" autocomplete="off">
+          <button class="btn small">发送</button>
+        </form>
+      </div>
+    </div>
+    <div class="hud-bottom">
+      <div id="hud-deed"></div>
+      <div id="hud-timer" class="timer"><i></i><span></span></div>
+      <div id="hud-status" class="status-line"></div>
+      <div id="hud-actions" class="actions"></div>
+    </div>
+    <div id="hud-emotes" class="hud-emotes"></div>
+    <div id="card-popup" class="card-popup"></div>
+  </section>
+
+  <div id="modal-root"></div>
+  <div id="toast-root"></div>
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>
